@@ -1,5 +1,5 @@
 """Validated API and domain models."""
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -24,7 +24,7 @@ class EventIn(BaseModel):
     @classmethod
     def ensure_timezone(cls, value: datetime) -> datetime:
         if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
+            return value.replace(tzinfo=UTC)
         return value
 
 
@@ -50,4 +50,4 @@ class Alert(BaseModel):
     description: str
     event_ids: list[str]
     mitre_techniques: list[str] = Field(default_factory=list)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
