@@ -1,0 +1,16 @@
+services:
+  aegis-api:
+    build: .
+    container_name: aegis-api
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      AEGIS_DB_PATH: /app/data/aegis.db
+    volumes:
+      - aegis-data:/app/data
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
+
+volumes:
+  aegis-data:
