@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-11-17T12:00:00Z",
+  "source": "windows",
+  "event_type": "process_creation",
+  "host": "lab-win01",
+  "username": "analyst",
+  "process_name": "powershell.exe",
+  "command_line": "powershell.exe -enc UABvAHcAZQByAFMAaABlAGwAbAAgAC0ARgBpAGwAZQAgAHQAZQBzAHQALgBwAHMAMQA=",
+  "source_ip": null,
+  "destination_ip": null,
+  "metadata": {
+    "event_id": 1,
+    "fixture": true,
+    "note": "Synthetic detection fixture. Never execute this command."
+  }
+}
