@@ -1,11 +1,12 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from aegis.detections import correlate_authentication_failures, evaluate_event
 from aegis.models import NormalizedEvent
 
 
 def make_event(**overrides):
     data = {
-        "timestamp": datetime.now(timezone.utc),
+        "timestamp": datetime.now(UTC),
         "source": "windows",
         "event_type": "process_creation",
         "host": "lab-win01",
