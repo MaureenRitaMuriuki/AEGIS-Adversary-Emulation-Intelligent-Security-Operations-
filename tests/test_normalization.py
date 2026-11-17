@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from aegis.models import EventIn
 from aegis.normalization import normalize_event
 
