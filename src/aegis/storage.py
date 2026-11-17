@@ -2,6 +2,7 @@
 import json
 import sqlite3
 from pathlib import Path
+
 from .models import Alert, NormalizedEvent
 
 
