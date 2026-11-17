@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -17,7 +17,7 @@ def test_health_endpoint():
 def test_ingest_event_persists_event_and_detection(monkeypatch, tmp_path):
     monkeypatch.setattr(main, "store", EventStore(tmp_path / "test.db"))
     payload = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "source": "windows",
         "event_type": "process_creation",
         "host": "LAB-WIN01",
@@ -44,7 +44,7 @@ def test_ingest_event_persists_event_and_detection(monkeypatch, tmp_path):
 
 def test_ingestion_rejects_unexpected_fields():
     payload = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "source": "linux",
         "event_type": "process_creation",
         "host": "lab-linux01",
