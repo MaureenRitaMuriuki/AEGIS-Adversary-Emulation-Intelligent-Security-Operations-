@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Activity, AlertOctagon, ArrowDownRight, ArrowUpRight, Bell, Check,
   ChevronDown, CircleHelp, Clock3, Command, Cpu, Database, FileSearch,
@@ -15,7 +15,7 @@ type EventRecord = {
 type AlertRecord = {
   alert_id: string; rule_id: string; title: string; severity: string;
   description: string; event_ids: string[]; mitre_techniques: string[];
-  created_at: string;
+  created_at: string; status: "new" | "acknowledged" | "resolved"; analyst_note: string;
 };
 type Page = "overview" | "events" | "alerts";
 
@@ -66,13 +66,22 @@ function App() {
     return () => window.clearInterval(timer);
   }, [refresh]);
 
+  const updateAlert = useCallback(async (alertId: string, status: AlertRecord["status"], analystNote: string) => {
+    const response = await fetch(`/api/v1/alerts/${alertId}/status`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, analyst_note: analystNote })
+    });
+    if (!response.ok) throw new Error("Could not update alert status");
+    await refresh();
+  }, [refresh]);
+
   const filteredEvents = useMemo(() => events.filter((event) =>
     [event.host, event.source, event.event_type, event.username, event.process_name]
       .some((value) => value?.toLowerCase().includes(query.toLowerCase()))
   ), [events, query]);
 
   const filteredAlerts = useMemo(() => alerts.filter((alert) =>
-    [alert.title, alert.rule_id, alert.severity, alert.description]
+    [alert.title, alert.rule_id, alert.severity, alert.description, alert.status, alert.analyst_note]
       .some((value) => value?.toLowerCase().includes(query.toLowerCase()))
   ), [alerts, query]);
 
@@ -175,13 +184,13 @@ function App() {
             </div>
             <section className="panel alerts-panel">
               <div className="panel-heading"><div><h3>Latest detections</h3><p>Review signals that require analyst attention</p></div><button className="text-button" onClick={() => setPage("alerts")}>All detections <ArrowUpRight size={14}/></button></div>
-              {alerts.length ? <div className="alert-list">{alerts.slice(0,4).map(alert => <AlertRow key={alert.alert_id} alert={alert}/>)}</div> : <Empty icon={<ShieldCheck size={20}/>} title="No alerts to review" detail="Detection alerts will appear here when incoming events match an enabled rule."/>}
+              {alerts.length ? <div className="alert-list">{alerts.slice(0,4).map(alert => <AlertRow key={alert.alert_id} alert={alert} onUpdate={updateAlert}/>)}</div> : <Empty icon={<ShieldCheck size={20}/>} title="No alerts to review" detail="Detection alerts will appear here when incoming events match an enabled rule."/>}
             </section>
           </>}
 
           {page !== "overview" && <section className="panel full-panel">
             <div className="panel-heading list-heading"><div><h3>{page === "events" ? "Normalized events" : "Detection queue"}</h3><p>{page === "events" ? `${events.length} records available · newest first` : `${alerts.length} alerts available · newest first`}</p></div><div className="list-tools"><div className="search-box"><Search size={15}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search records..."/>{query && <button onClick={() => setQuery("")} aria-label="Clear search"><X size={13}/></button>}</div><button className="filter-button"><ListFilter size={15}/> Filter</button></div></div>
-            {page === "events" ? filteredEvents.length ? <div className="table-wrap"><table className="wide-table"><thead><tr><th>EVENT TYPE</th><th>HOST</th><th>USER</th><th>SOURCE</th><th>TIMESTAMP</th><th>EVENT ID</th></tr></thead><tbody>{filteredEvents.map(event => <tr key={event.event_id}><td><div className="event-title">{event.event_type.replaceAll("_"," ")}</div><div className="event-sub">{event.process_name || "—"}</div></td><td className="mono">{event.host}</td><td>{event.username || "—"}</td><td><span className="source-tag">{event.source}</span></td><td className="time-cell">{stamp(event.timestamp)}</td><td className="mono id-cell">{event.event_id.slice(0,12)}…</td></tr>)}</tbody></table></div> : <Empty icon={<Database size={20}/>} title="No matching events" detail="Try another search term or ingest a telemetry fixture."/> : filteredAlerts.length ? <div className="alert-list expanded">{filteredAlerts.map(alert => <AlertRow key={alert.alert_id} alert={alert}/>)}</div> : <Empty icon={<ShieldCheck size={20}/>} title="No matching alerts" detail="There are no alerts matching this search."/>}
+            {page === "events" ? filteredEvents.length ? <div className="table-wrap"><table className="wide-table"><thead><tr><th>EVENT TYPE</th><th>HOST</th><th>USER</th><th>SOURCE</th><th>TIMESTAMP</th><th>EVENT ID</th></tr></thead><tbody>{filteredEvents.map(event => <tr key={event.event_id}><td><div className="event-title">{event.event_type.replaceAll("_"," ")}</div><div className="event-sub">{event.process_name || "—"}</div></td><td className="mono">{event.host}</td><td>{event.username || "—"}</td><td><span className="source-tag">{event.source}</span></td><td className="time-cell">{stamp(event.timestamp)}</td><td className="mono id-cell">{event.event_id.slice(0,12)}…</td></tr>)}</tbody></table></div> : <Empty icon={<Database size={20}/>} title="No matching events" detail="Try another search term or ingest a telemetry fixture."/> : filteredAlerts.length ? <div className="alert-list expanded">{filteredAlerts.map(alert => <AlertRow key={alert.alert_id} alert={alert} onUpdate={updateAlert}/>)}</div> : <Empty icon={<ShieldCheck size={20}/>} title="No matching alerts" detail="There are no alerts matching this search."/>}
           </section>}
 
           <footer className="footer"><div><span className="footer-mark"><Shield size={13}/></span> AEGIS <span className="footer-divider">·</span> Security Operations</div><div><span className={`status-dot ${online ? "online" : "offline"}`}/>{online ? "Connected to local API" : "Waiting for API"} <span className="footer-divider">·</span> v0.1.0</div></footer>
@@ -191,14 +200,24 @@ function App() {
   );
 }
 
-function Metric({ icon, label, value, note, tone, compact = false }: { icon: React.ReactNode; label: string; value: string | number; note: string; tone: string; compact?: boolean }) {
+function Metric({ icon, label, value, note, tone, compact = false }: { icon: ReactNode; label: string; value: string | number; note: string; tone: string; compact?: boolean }) {
   return <div className="metric-card"><div className="metric-top"><span className={`metric-icon ${tone}`}>{icon}</span><span className="metric-label">{label}</span><span className="metric-trend"><ArrowDownRight size={13}/></span></div><div className={`metric-value ${compact ? "compact-value" : ""}`}>{value}</div><div className="metric-note">{note}</div></div>;
 }
 function Severity({ label, count, total, tone }: { label: string; count: number; total: number; tone: string }) {
   return <div className="severity-row"><div className="severity-label"><span className={`severity-dot ${tone}`}/>{label}<strong>{count}</strong></div><div className="severity-track"><span className={tone} style={{ width: `${total ? count / total * 100 : 0}%` }}/></div></div>;
 }
-function AlertRow({ alert }: { alert: AlertRecord }) {
-  return <div className="alert-row"><div className={`alert-symbol ${alert.severity.toLowerCase()}`}><ShieldAlert size={17}/></div><div className="alert-main"><div className="alert-title-line"><strong>{alert.title}</strong><span className={`severity-badge ${alert.severity.toLowerCase()}`}>{alert.severity}</span></div><p>{alert.description}</p><div className="alert-meta"><span>{alert.rule_id}</span><span>{alert.mitre_techniques?.join(", ") || "ATT&CK mapping pending"}</span><span>{alert.event_ids?.length || 0} evidence event(s)</span></div></div><div className="alert-time"><Clock3 size={13}/>{timeAgo(alert.created_at)}</div></div>;
+function AlertRow({ alert, onUpdate }: { alert: AlertRecord; onUpdate: (id: string, status: AlertRecord["status"], note: string) => Promise<void> }) {
+  const [note, setNote] = useState(alert.analyst_note || "");
+  const [status, setStatus] = useState<AlertRecord["status"]>(alert.status || "new");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const save = async () => {
+    setSaving(true); setError("");
+    try { await onUpdate(alert.alert_id, status, note); }
+    catch { setError("Update failed. Check the API connection and try again."); }
+    finally { setSaving(false); }
+  };
+  return <div className="alert-row"><div className={`alert-symbol ${alert.severity.toLowerCase()}`}><ShieldAlert size={17}/></div><div className="alert-main"><div className="alert-title-line"><strong>{alert.title}</strong><span className={`severity-badge ${alert.severity.toLowerCase()}`}>{alert.severity}</span><span className={`triage-badge ${status}`}>{status.replace("_", " ")}</span></div><p>{alert.description}</p><div className="alert-meta"><span>{alert.rule_id}</span><span>{alert.mitre_techniques?.join(", ") || "ATT&CK mapping pending"}</span><span>{alert.event_ids?.length || 0} evidence event(s)</span></div><div className="triage-controls"><label>Analyst status<select value={status} onChange={e => setStatus(e.target.value as AlertRecord["status"])}><option value="new">New</option><option value="acknowledged">Acknowledged</option><option value="resolved">Resolved</option></select></label><label className="note-field">Investigation note<textarea value={note} maxLength={2000} onChange={e => setNote(e.target.value)} placeholder="Record what you reviewed, evidence observed, and next steps..."/></label><button className="save-triage" onClick={() => void save()} disabled={saving}>{saving ? "Saving..." : "Save triage"}</button>{error && <span className="triage-error">{error}</span>}</div></div><div className="alert-time"><Clock3 size={13}/>{timeAgo(alert.created_at)}</div></div>;
 }
 function Empty({ icon, title, detail }: { icon: React.ReactNode; title: string; detail: string }) {
   return <div className="empty-state"><div className="empty-icon">{icon}</div><strong>{title}</strong><span>{detail}</span></div>;
