@@ -3,7 +3,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from .models import Alert, NormalizedEvent
+from .models import Alert, AlertStatus, NormalizedEvent
 
 
 class EventStore:
@@ -70,4 +70,27 @@ class EventStore:
             rows = conn.execute(
                 "SELECT payload FROM alerts ORDER BY created_at DESC LIMIT ?", (limit,)
             ).fetchall()
-        return [json.loads(row["payload"]) for row in rows]
+        items = [json.loads(row["payload"]) for row in rows]
+        # Backfill defaults for alerts created before analyst triage was introduced.
+        for item in items:
+            item.setdefault("status", "new")
+            item.setdefault("analyst_note", "")
+        return items
+
+    def update_alert_status(
+        self, alert_id: str, status: AlertStatus, analyst_note: str
+    ) -> dict | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT payload FROM alerts WHERE alert_id = ?", (alert_id,)
+            ).fetchone()
+            if row is None:
+                return None
+            payload = json.loads(row["payload"])
+            payload["status"] = status
+            payload["analyst_note"] = analyst_note
+            conn.execute(
+                "UPDATE alerts SET payload = ? WHERE alert_id = ?",
+                (json.dumps(payload), alert_id),
+            )
+        return payload
