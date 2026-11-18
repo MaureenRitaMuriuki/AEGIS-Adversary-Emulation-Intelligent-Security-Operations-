@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException, Query
 
 from .config import APP_NAME, APP_VERSION, DB_PATH
 from .detections import correlate_authentication_failures, evaluate_event
-from .models import EventIn
+from .models import AlertStatusUpdate, EventIn
 from .normalization import normalize_event
 from .storage import EventStore
 
@@ -36,13 +36,24 @@ def ingest_event(payload: EventIn):
 
 @app.get("/api/v1/events")
 def get_events(limit: int = Query(default=100, ge=1, le=500)):
-    return {"items": store.list_events(limit), "count": len(store.list_events(limit))}
+    items = store.list_events(limit)
+    return {"items": items, "count": len(items)}
 
 
 @app.get("/api/v1/alerts")
 def get_alerts(limit: int = Query(default=100, ge=1, le=500)):
     items = store.list_alerts(limit)
     return {"items": items, "count": len(items)}
+
+
+@app.patch("/api/v1/alerts/{alert_id}/status")
+def update_alert_status(alert_id: str, payload: AlertStatusUpdate):
+    updated = store.update_alert_status(
+        alert_id, payload.status, payload.analyst_note
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return {"alert": updated}
 
 
 @app.post("/api/v1/detections/correlate-auth")
