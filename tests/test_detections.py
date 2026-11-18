@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from aegis.detections import correlate_authentication_failures, evaluate_event
 from aegis.models import NormalizedEvent
@@ -48,3 +48,41 @@ def test_authentication_below_threshold_does_not_alert():
         for _ in range(4)
     ]
     assert correlate_authentication_failures(events, threshold=5) == []
+
+
+def test_authentication_failures_outside_window_do_not_correlate():
+    now = datetime.now(UTC)
+    events = [
+        make_event(
+            timestamp=now - timedelta(minutes=20),
+            event_type="authentication_failure",
+            process_name=None,
+            command_line=None,
+        ),
+        *[
+            make_event(
+                timestamp=now - timedelta(minutes=1),
+                event_type="authentication_failure",
+                process_name=None,
+                command_line=None,
+            )
+            for _ in range(4)
+        ],
+    ]
+    assert correlate_authentication_failures(events, threshold=5, window_minutes=10) == []
+
+
+def test_authentication_failures_within_window_correlate():
+    now = datetime.now(UTC)
+    events = [
+        make_event(
+            timestamp=now - timedelta(minutes=5),
+            event_type="authentication_failure",
+            process_name=None,
+            command_line=None,
+        )
+        for _ in range(5)
+    ]
+    alerts = correlate_authentication_failures(events, threshold=5, window_minutes=10)
+    assert len(alerts) == 1
+    assert len(alerts[0].event_ids) == 5
