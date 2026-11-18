@@ -1,6 +1,6 @@
 """Validated API and domain models."""
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -42,6 +42,9 @@ class NormalizedEvent(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+AlertStatus = Literal["new", "acknowledged", "resolved"]
+
+
 class Alert(BaseModel):
     alert_id: str = Field(default_factory=lambda: str(uuid4()))
     rule_id: str
@@ -51,3 +54,12 @@ class Alert(BaseModel):
     event_ids: list[str]
     mitre_techniques: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    status: AlertStatus = "new"
+    analyst_note: str = Field(default="", max_length=2000)
+
+
+class AlertStatusUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: AlertStatus
+    analyst_note: str = Field(default="", max_length=2000)
